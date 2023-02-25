@@ -1,0 +1,62 @@
+pipeline {
+    agent any
+
+    environment {
+        VERSION = "1.0.${BUILD_NUMBER}"
+    }
+
+    stages {
+        stage('Checkout') {
+            steps {
+                checkout scm
+            }
+        }
+
+        stage('Code Quality') {
+            steps {
+                sh 'flake8 simulation/ tests/'
+            }
+        }
+
+        stage('Build Docker Image') {
+            steps {
+                sh 'docker build -t i2c_simulator:${VERSION} .'
+            }
+        }
+
+        stage('Unit Tests') {
+            parallel {
+                stage('Run Tests') {
+                    steps {
+                        sh 'pytest tests/ --junitxml=reports/results.xml'
+                    }
+                }
+                stage('Simulate ACK') {
+                    steps {
+                        sh 'python simulation/i2c_ack_sim.py'
+                    }
+                }
+            }
+        }
+
+        stage('Waveform PDF') {
+            steps {
+                sh 'python reports/generate_i2c_pdf.py'
+            }
+        }
+    }
+
+    post {
+        success {
+            archiveArtifacts artifacts: 'reports/*.pdf, reports/*.xml', fingerprint: true
+            echo 'Build succeeded!'
+            script {
+                // Slack webhook or email stub
+                echo 'Sending success notification to Slack/email...'
+            }
+        }
+        failure {
+            echo 'Build failed! Notifying stakeholders...'
+        }
+    }
+}
