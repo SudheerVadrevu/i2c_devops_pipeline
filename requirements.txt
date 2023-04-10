@@ -1,0 +1,4 @@
+matplotlib
+fpdf
+pytest
+flake8
